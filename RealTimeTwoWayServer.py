@@ -19,7 +19,7 @@ CLASSES = ["background", "airplane", "bicycle", "bird", "boat",
 STREAM = False
 FRAME = None
 
-def Server(CThreshold=0.7):
+def Server():
     global FRAME, STREAM
 
     #Initialize ImageHub

@@ -70,6 +70,14 @@ class FaceRemover(object):
     def getFacePoints(self, Image):
         self.HEstimator.Analyze(Image)
         return self.HEstimator.GetFace()
+
+    def GetKeyPoints(self, Image):
+        self.HEstimator.Analyze(Image)
+        Hands = self.HEstimator.GetHands() if self.Hands else None
+        Face = self.HEstimator.GetFace()
+        Body = self.HEstimator.GetBody()
+        
+        return Body, Face, Hands
     
     def BlurFaces(self, Image, FacePoints=None):
         if FacePoints is None:
@@ -141,18 +149,11 @@ class FaceRemover(object):
                         BlurredImg[BBox[1]:BBox[3],BBox[0]:BBox[2],:] = cv2.GaussianBlur(Image[BBox[1]:BBox[3],BBox[0]:BBox[2],:], (63,63), 30)
                         FLAG = True
 
-
+                    #Check which person/people that the KeyPoints that exist belong to
                     Points = FacePoints[:,:,:2]
                     MinPoints = np.greater(Points - np.array([[[BBox[0], BBox[1]]]], dtype=Points.dtype),0)
                     MaxPoints = np.less(Points - np.array([[[BBox[2], BBox[3]]]], dtype=Points.dtype),0)
                     TruthMap = np.logical_and(MinPoints[:,:,0], MinPoints[:,:,1]) & np.logical_and(MaxPoints[:,:,0], MaxPoints[:,:,1])
-                    #if not np.any(TruthMap):
-                    #    BlurredImg[BBox[1]:BBox[3],BBox[0]:BBox[2],:] = cv2.GaussianBlur(Image[BBox[1]:BBox[3],BBox[0]:BBox[2],:], (63,63), 30)
-                    #    FLAG = True
-                    
-                    #else:
-                    #The Box contains some KeyPoints. 
-                    #Check which person/people that any of the KeyPoints that exist belong to.
                     for i in np.arange(KeyFaces):
                         if np.any(TruthMap[i,:]):
                             FaceMaps[i] = True
@@ -173,15 +174,7 @@ class FaceRemover(object):
         ####### Image : The Image with Blurred Faces #############
         ####### FLAG : Flag the frame to suggest user review #####
         ##########################################################
-        return BlurredImg, FLAG
-    
-    def GetKeyPoints(self, Image):
-        self.HEstimator.Analyze(Image)
-        Hands = self.HEstimator.GetHands() if self.Hands else None
-        Face = self.HEstimator.GetFace()
-        Body = self.HEstimator.GetBody()
-        
-        return Body, Face, Hands            
+        return BlurredImg, FLAG           
 
 if __name__=='__main__':
     Test = cv2.imread("./Example2.jpg")
