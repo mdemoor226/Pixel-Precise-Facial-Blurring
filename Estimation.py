@@ -90,25 +90,34 @@ class FaceRemover(object):
         #Create Polygon Coordinates from Face Keypoints to Segment out Facial Areas - # 0-16, 26-17, (17,0)
         #And Obtain Boxes for Facial Blurring
         Img = np.copy(Image)
-        Segment = np.zeros_like(Image)
+        h, w = Image.shape[:2]
+        SegMasks = np.empty((h,w,3,FacePoints.shape[0]))
         for i in np.arange(FacePoints.shape[0]):
+            Segment = np.zeros_like(Image)
             Points = FacePoints[i,:,:2]
             Polys = np.concatenate((Points[:17,:],Points[17:27,:][::-1]), axis=0).astype(np.int32)
-
-            #Create Segmentation Masks from Polygons
-            cv2.fillPoly(Segment, pts=[Polys], color=(1,1,1))
+            
+            #Clamp to within image boundaries
+            Polys[Polys < 0] = 0
+            Polys[:,0][Polys[:,0] > w] = w - 1
+            Polys[:,1][Polys[:,1] > h] = h - 1
 
             #Obtain Box Coordinates for Cropping and Blurring
             Minx, Miny = np.amin(Polys, axis=0)
             Maxx, Maxy = np.amax(Polys, axis=0)
             Img[Miny:Maxy+1,Minx:Maxx+1,:] = cv2.GaussianBlur(Image[Miny:Maxy+1,Minx:Maxx+1,:], (63,63), 30)
 
-        #Only apply the Blurred Pixels belonging to Segmented Faces onto the Original Image
-        Image[Segment>0] = Img[Segment>0]
+            #Create Segmentation Masks from Polygons
+            cv2.fillPoly(Segment, pts=[Polys], color=(1,1,1))
+            SegMasks[:,:,:,i] = Segment
 
-        return Image, Segment
+        #Only apply the Blurred Pixels belonging to Segmented Faces onto the Original Image
+        Union = np.amax(SegMasks, axis=3)
+        Image[Union>0] = Img[Union>0]
+
+        return Image, SegMasks
     
-    def DetectAndBlur(self, Image, CTHRESHOLD=0.3, IoUThresh=0.6):
+    def DetectAndBlur(self, Image, CTHRESHOLD=0.3, IoUThresh=0.4):
         ############ Inputs #############
         ## Image : Image to Analyze #####
         ## CTHRESHOLD : Acceptable ######
@@ -121,7 +130,7 @@ class FaceRemover(object):
         KeyFaces = 0 if len(FacePoints.shape)==0 else FacePoints.shape[0]
         
         #Use Facial Keypoints to Segment and Blur out Faces in the Image
-        BlurredImg, Segment = self.BlurFaces(np.copy(Image), FacePoints)
+        BlurredImg, SegMasks = self.BlurFaces(np.copy(Image), FacePoints)
         
         #Normalize Input Image/Data Before Forwarding Through the Separate Face Detection Network
         h, w = Image.shape[:2]
@@ -140,12 +149,19 @@ class FaceRemover(object):
                 
                 #Obtain Bounding Box Coordinates for Predicted Face
                 BBox = Detections[0, 0, i, 3:7] * np.array([w, h, w, h]) #BBox = (StartX, StartY, EndX, EndY)
+                BBox[BBox < 0] = 0
+                BBox[2] = w - 1 if BBox[2] > w else BBox[2]
+                BBox[3] = h -1 if BBox[3] > h else BBox[3]
                 BBox = BBox.astype("int")
                 
-                #If no Face Keypoints are contained within the Box, Blur the whole Box and Flag the Frame
+                #If the IoU overlap between all the predicted Face Masks and the given Bounding Box is less than some Threshold, Blur the whole Box and Flag the Frame
                 if KeyFaces > 0:
-                    IoU = np.sum(Segment[BBox[1]:BBox[3],BBox[0]:BBox[2],0]) / ((BBox[2] - BBox[0])*(BBox[3] - BBox[1]))
-                    if IoU <= IoUThresh:
+                    #Calculate the IoUs between the Predicted Bounding Box and each of the Predicted Face Segmentation Masks
+                    UBox = np.zeros((h,w,1), dtype=SegMasks.dtype)
+                    UBox[BBox[1]:BBox[3],BBox[0]:BBox[2]] = 1
+                    Unions = np.logical_or(SegMasks[:,:,0,:], UBox)
+                    IoUs = np.sum(SegMasks[BBox[1]:BBox[3],BBox[0]:BBox[2],0,:], axis=(0,1)) / np.sum(Unions, axis=(0,1)) #((BBox[2] - BBox[0])*(BBox[3] - BBox[1]))
+                    if np.all(np.less(IoUs, IoUThresh)):
                         BlurredImg[BBox[1]:BBox[3],BBox[0]:BBox[2],:] = cv2.GaussianBlur(Image[BBox[1]:BBox[3],BBox[0]:BBox[2],:], (63,63), 30)
                         FLAG = True
 
@@ -159,7 +175,7 @@ class FaceRemover(object):
                             FaceMaps[i] = True
                         
                 else:
-                    #No Face Keypoints exist at all. Blur the whole box anyway.
+                    #No Face Keypoints exist at all. So just Blur the whole box.
                     BlurredImg[BBox[1]:BBox[3],BBox[0]:BBox[2],:] = cv2.GaussianBlur(Image[BBox[1]:BBox[3],BBox[0]:BBox[2],:], (63,63), 30)
                                         
         #If all the Face Keypoints for a particular person fall within no predicted Box Flag the Frame

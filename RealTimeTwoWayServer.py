@@ -55,7 +55,7 @@ def MessagePassing():
     global STREAM
     
     # Send Data Back to Client
-    SERVER_IP = "172.24.118.97"
+    SERVER_IP = "10.3.12.70"#"172.24.118.97"
 
     #Initialize Sender Object for the Server
     print("Connecting to Client...")
