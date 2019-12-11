@@ -52,15 +52,11 @@ class Estimator(object):
         assert self.datum is not None, "Error, analyze an image first before making calls."
         return self.datum.cvOutputData
 
-    def GetAngle(self, Image, KP1, KP2, KP3):
+    def GetAngle(self, KP1, KP2, KP3):
         #Obtain base coordinages of Keypoints. Invert the y's because OpenCV's origin is at the top left of the image instead of the bottom left.
-        h = Image.shape[0]
-        KP1x = KP1[0]
-        KP1y = h - KP1[1]
-        KP2x = KP2[0]
-        KP2y = h - KP2[1]
-        KP3x = KP3[0]
-        KP3y = h - KP3[1]
+        KP1x, KP1y = KP1[:2]
+        KP2x, KP2y = KP2[:2]
+        KP3x, KP3y = KP3[:2]
         
         #Calculate the KP1 --> KP2 --> KP3 Angle
         2to1 = np.array([KP1x - KP2x, KP1y - KP2y], dtype=np.float32)
