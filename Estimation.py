@@ -52,9 +52,27 @@ class Estimator(object):
         assert self.datum is not None, "Error, analyze an image first before making calls."
         return self.datum.cvOutputData
 
+    def GetAngle(self, Image, KP1, KP2, KP3):
+        #Obtain base coordinages of Keypoints. Invert the y's because OpenCV's origin is at the top left of the image instead of the bottom left.
+        h = Image.shape[0]
+        KP1x = KP1[0]
+        KP1y = h - KP1[1]
+        KP2x = KP2[0]
+        KP2y = h - KP2[1]
+        KP3x = KP3[0]
+        KP3y = h - KP3[1]
+        
+        #Calculate the KP1 --> KP2 --> KP3 Angle
+        2to1 = np.array([KP1x - KP2x, KP1y - KP2y], dtype=np.float32)
+        2to3 = np.array([KP3x - KP2x, KP3y - KP2y], dtype=np.float32)
+        M2to1 = np.linalg.norm(2to1)
+        M2to3 = np.linalg.norm(2to3)
+        Angle = np.arccos(np.sum(2to1*2to3) / (M2to1*M2to3)) # Theta = arccos(<u,v> / ||u|||*||v}})
+
+        return Angle
 
 class FaceRemover(object):
-    def __init__(self, face_model_path="./../../../../../res10_300x300_ssd_iter_140000.caffemodel", face_proto_path="./../../../../../deploy.prototxt.txt",
+    def __init__(self, face_model_path="./res10_300x300_ssd_iter_140000.caffemodel", face_proto_path="./deploy.prototxt.txt",
                  pose_model_path="./../../../models", hands=False):
         self.hands = hands
         
