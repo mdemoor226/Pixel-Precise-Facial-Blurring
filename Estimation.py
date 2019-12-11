@@ -2,12 +2,11 @@ import numpy as np
 import cv2 
 import sys
 import os
-from sys import platform
-sys.path.append('../../python');
+sys.path.append('../../python'); #This might not be necessary if OpenPose is set up to work from any director aside from just the tutorial section
 from openpose import pyopenpose as op
 
 #Refer to https://github.com/CMU-Perceptual-Computing-Lab/openpose/blob/master/doc/output.md on what joint each KeyPoint represents
-#The methods above will return Keypoints for every detected person in the image. Each Keypoint will contain an xy coordinate along
+#The methods below will return Keypoints for every detected person in the image. Each Keypoint will contain an xy coordinate along
 #with a Confidence Level prediction. About 25 Keypoints per person (at least for the body pose excluding the hand/face Keypoints).
 
 class Estimator(object):
@@ -17,7 +16,7 @@ class Estimator(object):
 
         # Custom Params (refer to include/openpose/flags.hpp for more parameters)
         self.params = dict()
-        self.params["model_folder"] = model_path #"../../../model/"
+        self.params["model_folder"] = model_path #"../../../model/" is the default path to use if running this code under the tutorial_api_python folder
         self.params["face"] = face
         self.params["hand"] = hands
         
@@ -53,17 +52,15 @@ class Estimator(object):
         return self.datum.cvOutputData
 
     def GetAngle(self, KP1, KP2, KP3):
-        #Obtain base coordinages of Keypoints. Invert the y's because OpenCV's origin is at the top left of the image instead of the bottom left.
+        #Obtain base coordinates of Keypoints.
         KP1x, KP1y = KP1[:2]
         KP2x, KP2y = KP2[:2]
         KP3x, KP3y = KP3[:2]
         
-        #Calculate the KP1 --> KP2 --> KP3 Angle
-        2to1 = np.array([KP1x - KP2x, KP1y - KP2y], dtype=np.float32)
-        2to3 = np.array([KP3x - KP2x, KP3y - KP2y], dtype=np.float32)
-        M2to1 = np.linalg.norm(2to1)
-        M2to3 = np.linalg.norm(2to3)
-        Angle = np.arccos(np.sum(2to1*2to3) / (M2to1*M2to3)) # Theta = arccos(<u,v> / ||u|||*||v}})
+        #Calculate the KP1 --> KP2 --> KP3 Angle: Theta = arccos(<u,v> / ||u||*||v||}})
+        TwptoOne = np.array([KP1x - KP2x, KP1y - KP2y], dtype=np.float32)
+        TwotoThree = np.array([KP3x - KP2x, KP3y - KP2y], dtype=np.float32)
+        Angle = np.arccos(np.sum(TwotoOne*TwotoThree) / (np.linalg.norm(TwotoOne)*np.linalg.norm(TwotoThree))) 
 
         return Angle
 
@@ -132,12 +129,12 @@ class FaceRemover(object):
         return Image, SegMasks
     
     def DetectAndBlur(self, Image, CTHRESHOLD=0.3, IoUThresh=0.4):
-        ############ Inputs #############
-        ## Image : Image to Analyze #####
-        ## CTHRESHOLD : Acceptable ######
-        ## Confidence Level for Face ####
-        ## Predictions ##################
-        #################################
+        ######################### Inputs ##############################
+        ## Image : Image to Analyze ###################################
+        ## CTHRESHOLD : Acceptance Level for SSD Face Detections ######
+        ## Confidence Level for Face ##################################
+        ## Predictions ################################################
+        ###############################################################
         
         FLAG = False #Flag the Frame for User Review
         FacePoints = self.getFacePoints(Image) #Predict Face KeyPoints
@@ -152,7 +149,7 @@ class FaceRemover(object):
         self.FDetector.setInput(Data)
         Detections = self.FDetector.forward()
         
-        #Process Face Detections - Some Code here (a few lines) is adapted off of Adrian Rosebrocks PyImageSearch Tutorials
+        #Process Face Detections - Some Code here (maybe 3-4 lines) is adapted off of Adrian Rosebrocks PyImageSearch Tutorials
         Prediction_Count = 0
         FaceMaps = np.array([False for _ in range(KeyFaces)])
         for i in np.arange(Detections.shape[2]):
@@ -179,7 +176,7 @@ class FaceRemover(object):
                         BlurredImg[BBox[1]:BBox[3],BBox[0]:BBox[2],:] = cv2.GaussianBlur(Image[BBox[1]:BBox[3],BBox[0]:BBox[2],:], (63,63), 30)
                         FLAG = True
 
-                    #Check which person/people that the KeyPoints that exist belong to
+                    #Check which person/people that the KeyPoints that exist belong to. #This part might still need some testing. But it should work.
                     Points = FacePoints[:,:,:2]
                     MinPoints = np.greater(Points - np.array([[[BBox[0], BBox[1]]]], dtype=Points.dtype),0)
                     MaxPoints = np.less(Points - np.array([[[BBox[2], BBox[3]]]], dtype=Points.dtype),0)
@@ -207,7 +204,7 @@ class FaceRemover(object):
         return BlurredImg, FLAG           
 
 if __name__=='__main__':
-    Test = cv2.imread("./Example2.jpg")
+    Test = cv2.imread("./Example.jpg")
     Privacy = FaceRemover()
     Image, Flag = Privacy.DetectAndBlur(Test)
     cv2.imshow("Facial Blurring Example", Image)
