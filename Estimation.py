@@ -57,8 +57,8 @@ class Estimator(object):
         KP2x, KP2y = KP2[:2]
         KP3x, KP3y = KP3[:2]
         
-        #Calculate the KP1 --> KP2 --> KP3 Angle: Theta = arccos(<u,v> / ||u||*||v||}})
-        TwptoOne = np.array([KP1x - KP2x, KP1y - KP2y], dtype=np.float32)
+        #Calculate the KP1 --> KP2 --> KP3 Angle: Theta = arccos(<u,v> / ||u||*||v||)
+        TwotoOne = np.array([KP1x - KP2x, KP1y - KP2y], dtype=np.float32)
         TwotoThree = np.array([KP3x - KP2x, KP3y - KP2y], dtype=np.float32)
         Angle = np.arccos(np.sum(TwotoOne*TwotoThree) / (np.linalg.norm(TwotoOne)*np.linalg.norm(TwotoThree))) 
 
